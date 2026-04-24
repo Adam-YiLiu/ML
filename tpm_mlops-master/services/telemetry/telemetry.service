@@ -1,0 +1,11 @@
+[Unit]
+Description=Telemetry Daemon
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/telemetry
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

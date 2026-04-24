@@ -1,0 +1,13 @@
+[Unit]
+Description=Start swtpm emulator and IBM TSS at boot
+After=network.target
+
+[Service]
+Type=oneshot
+User=csc8499
+RemainAfterExit=yes
+Environment=HOME=/home/csc8499
+ExecStart=/usr/local/bin/start_swtpm.sh
+
+[Install]
+WantedBy=multi-user.target
