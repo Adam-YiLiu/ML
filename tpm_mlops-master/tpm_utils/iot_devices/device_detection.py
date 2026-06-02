@@ -122,9 +122,11 @@ def determine_inference_backend() -> str:
         cma_ok, cma_free = check_cma_available()
         if not cma_ok:
             log.warning(
-                "DPU available but CMA memory insufficient (%d kB free). ",
+                "DPU available but CMA memory insufficient (%d kB free). "
+                "Falling back to ONNX Runtime.",
                 cma_free,
             )
+            return "onnx"
         log.info("Inference backend: DPU (Kria board with DPU detected)")
         return "dpu"
 

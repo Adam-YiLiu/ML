@@ -355,17 +355,15 @@ def run_inference(algo="ecc", use_swtpm=False, fail_quote=False, fail_hash=False
         f"({len(verified_images)}/{len(images)} verified)", log_path)
 
     # 3b. Batch inference for all verified images (model loaded once)
-    failed_images = [img for img in images if img not in verified_images]
     if verified_images:
         log(f"\nRunning batch inference on {len(verified_images)} verified images...", log_path)
         batch_cmd = [
             sys.executable, "main.py",
             str(model_path),
             "--batch-dir", str(images_dir),
+            "--batch-images", *verified_images,
             "--no-integrity-check", "--algo", algo
         ]
-        if failed_images:
-            batch_cmd.extend(["--exclude-images", *failed_images])
         if not use_swtpm:
             batch_cmd.append("--no-swtpm")
 

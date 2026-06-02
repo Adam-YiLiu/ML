@@ -1,0 +1,12 @@
+#cloud-config
+version: 2
+ethernets:
+  eth0:
+    match:
+      name: eth*
+    set-name: eth0
+    dhcp4: no
+    addresses: [192.168.2.100/24]
+    gateway4: 192.168.2.1
+    nameservers:
+      addresses: [1.1.1.1, 8.8.8.8]

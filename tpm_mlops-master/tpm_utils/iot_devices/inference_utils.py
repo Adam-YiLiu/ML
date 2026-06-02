@@ -472,7 +472,7 @@ def _run_inference_dpu(model_path: Path, input_data: np.ndarray):
 
 def _run_inference_dpu_with_runner(runner, input_data, in_shape, out_shape, in_fixpos, out_fixpos):
     """Run DPU inference using an already-created runner (for batch reuse)."""
-    # log.info("Quantising input using fix_point=%d …", in_fixpos)
+    log.info("Quantising input using fix_point=%d …", in_fixpos)
     input_scale = 2.0 ** in_fixpos
     quantized = np.clip(np.round(input_data * input_scale), -128, 127).astype(np.int8)
 
@@ -486,7 +486,7 @@ def _run_inference_dpu_with_runner(runner, input_data, in_shape, out_shape, in_f
     _prev_alarm = 0
     _prev_handler = signal.SIG_DFL
     try:
-        # log.info("Calling DPU using existing session … (timeout=%ds)", DPU_EXEC_TIMEOUT_S)
+        log.info("Calling DPU using existing session … (timeout=%ds)", DPU_EXEC_TIMEOUT_S)
         if DPU_EXEC_TIMEOUT_S > 0:
             def _timeout_handler(signum, frame):
                 raise TimeoutError(
@@ -517,7 +517,7 @@ def _run_inference_dpu_with_runner(runner, input_data, in_shape, out_shape, in_f
 
 def postprocess_output(output: np.ndarray, labels: list[str], top_k: int = 5):
     """Postprocess the output of the inference."""
-    # log.info("Raw model output: shape=%s dtype=%s", output.shape, output.dtype)
+    log.info("Raw model output: shape=%s dtype=%s", output.shape, output.dtype)
     probs = np.exp(output) / np.sum(np.exp(output), axis=1)
 
     top_indices = np.argsort(probs[0])[::-1][:top_k]
@@ -525,6 +525,6 @@ def postprocess_output(output: np.ndarray, labels: list[str], top_k: int = 5):
     top_labels = [labels[idx] if idx < len(labels) else f"class_{idx}" for idx in top_indices]
 
     for i, (prob, label) in enumerate(zip(top_probs, top_labels)):
-        # log.info("Top %d: %s (%.4f%%)", i + 1, label, prob * 100)
+        log.info("Top %d: %s (%.4f%%)", i + 1, label, prob * 100)
         return f"{top_labels[0]} ({top_probs[0] * 100:.4f})%"
     log.error("No output probabilities found.")

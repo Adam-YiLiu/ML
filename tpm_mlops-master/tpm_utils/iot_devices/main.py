@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
 import shutil
 import json
 import sys
@@ -152,7 +151,7 @@ def _resolve_model_for_backend(model_path: Path, backend: str) -> Path:
 
 def main_batch(model_path: Path, image_dir: Path, check_integrity: bool = True,
                use_swtpm: bool = True, algo: str = "ecc", fail_verify: bool = False,
-               exclude_images: Optional[List[str]] = None):
+               only_images: list[str] | None = None):
     """Load the model once and run inference on all .jpg images in a directory.
 
     Prints one JSON object per line to stdout for each image with per-image
@@ -161,8 +160,8 @@ def main_batch(model_path: Path, image_dir: Path, check_integrity: bool = True,
 
     Parameters
     ----------
-    exclude_images : list[str], optional
-        If given, skip these filenames during batch inference.
+    only_images : list[str], optional
+        If given, only inference these filenames (must exist in image_dir).
         Otherwise all .jpg files in the directory are used.
     """
     import time as _time
@@ -179,7 +178,7 @@ def main_batch(model_path: Path, image_dir: Path, check_integrity: bool = True,
     backend = determine_inference_backend()
     inference_model_path = _resolve_model_for_backend(model_path, backend)
     if backend == "dpu" and inference_model_path.suffix != ".xmodel":
-        raise ValueError(f"DPU backend requires an .xmodel file, but got {inference_model_path}")
+        backend = "onnx"
     log.info("Inference backend: %s  model: %s", backend, inference_model_path)
 
     _init_signature_paths(inference_model_path)
@@ -218,14 +217,23 @@ def main_batch(model_path: Path, image_dir: Path, check_integrity: bool = True,
         return integrity_summary, None
 
     # -- load model session once --------------------------------------------
-    log.info("Creating inference session for backend %s...", backend)
-    session = create_session(inference_model_path, backend=backend)
+    try:
+        log.info("Creating inference session for backend %s...", backend)
+        session = create_session(inference_model_path, backend=backend)
+    except RuntimeError as err:
+        if backend == "dpu":
+            log.warning("DPU session creation failed (%s) — falling back to ONNX", err)
+            backend = "onnx"
+            inference_model_path = _resolve_model_for_backend(model_path, backend)
+            session = create_session(inference_model_path, backend=backend)
+        else:
+            raise
 
     # -- iterate images -----------------------------------------------------
-    images = sorted(image_dir.glob("*.jpg"))
-    if exclude_images:
-        exclude_set = set(exclude_images)
-        images = [img for img in images if img.name not in exclude_set]
+    if only_images is not None:
+        images = [image_dir / name for name in only_images if (image_dir / name).exists()]
+    else:
+        images = sorted(image_dir.glob("*.jpg"))
     results = []
     for image_path in images:
         inf_start = datetime.now(timezone.utc)
@@ -236,6 +244,20 @@ def main_batch(model_path: Path, image_dir: Path, check_integrity: bool = True,
             log.info("Inferencing %s [backend=%s]", image_path, backend)
             output = run_inference_with_session(session, input_data)
             inf_res = postprocess_output(output, labels)
+        except RuntimeError as err:
+            if backend == "dpu":
+                log.warning("DPU inference failed (%s) — falling back to ONNX", err)
+                backend = "onnx"
+                inference_model_path = _resolve_model_for_backend(model_path, backend)
+                session = create_session(inference_model_path, backend=backend)
+                input_data = preprocess_image(image_path, backend=backend)
+                try:
+                    output = run_inference_with_session(session, input_data)
+                    inf_res = postprocess_output(output, labels)
+                except Exception as fallback_err:
+                    log.error("ONNX fallback also failed: %s", fallback_err)
+            else:
+                log.error(str(err))
         except Exception as err:
             log.error(str(err))
 
@@ -272,7 +294,7 @@ def main_wrapper(model_path: Path, image_path: Path, check_integrity: bool = Tru
     inference_model_path = _resolve_model_for_backend(model_path, backend)
     # If xmodel wasn't found, fall back to onnx backend
     if backend == "dpu" and inference_model_path.suffix != ".xmodel":
-        raise ValueError(f"DPU backend requires an .xmodel file, but got {inference_model_path}")
+        backend = "onnx"
     log.info("Inference backend: %s  model: %s", backend, inference_model_path)
 
     # Initialise signature paths based on the actual model being used
@@ -318,6 +340,20 @@ def main_wrapper(model_path: Path, image_path: Path, check_integrity: bool = Tru
         log.info(f"Inferencing {image_path} [backend={backend}]")
         output = run_inference(inference_model_path, input_data, backend=backend)
         inf_res = postprocess_output(output, labels)
+    except RuntimeError as err:
+        # DPU fingerprint mismatch or other fatal DPU error → fall back to ONNX
+        if backend == "dpu":
+            log.warning("DPU inference failed (%s) — falling back to ONNX", err)
+            backend = "onnx"
+            inference_model_path = _resolve_model_for_backend(model_path, backend)
+            input_data = preprocess_image(image_path, backend=backend)
+            try:
+                output = run_inference(inference_model_path, input_data, backend=backend)
+                inf_res = postprocess_output(output, labels)
+            except Exception as fallback_err:
+                log.error("ONNX fallback also failed: %s", fallback_err)
+        else:
+            log.error(str(err))
     except Exception as err:
         log.error(str(err))
     #if integrity_result:
@@ -386,10 +422,10 @@ if __name__ == "__main__":
         help="Directory of .jpg images for batch inference (load model once)",
     )
     parser.add_argument(
-        "--exclude-images",
+        "--batch-images",
         nargs="*",
         default=None,
-        help="Image filenames to exclude from batch inference in --batch-dir (default: none excluded)",
+        help="Specific image filenames to inference within --batch-dir (default: all .jpg)",
     )
 
     args = parser.parse_args()
@@ -437,10 +473,7 @@ if __name__ == "__main__":
     if args.image_path is None and args.batch_dir is None:
         parser.error("image_path or --batch-dir is required unless --verify-only is specified")
 
-    log.info("Model path: %s", args.model_path)
     if args.batch_dir is not None:
-        log.info("Dataset directory for batch inference: %s", args.batch_dir)
-        log.info("Signing algorithm: %s", args.algo)
         main_batch(
             args.model_path,
             args.batch_dir,
@@ -448,7 +481,7 @@ if __name__ == "__main__":
             use_swtpm=not args.no_use_swtpm,
             algo=args.algo,
             fail_verify=args.fail_verify,
-            exclude_images=args.exclude_images,
+            only_images=args.batch_images,
         )
         sys.exit(0)
 

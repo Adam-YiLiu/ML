@@ -23,7 +23,7 @@ def create_baseline(image_dir: Path, output_file: Path):
             with open(img_path, "rb") as img_file:
                 digest = hashlib.sha256(img_file.read()).hexdigest()
             f.write(f"{img_path}\t{digest}\n")
-            # print(f"Hashed: {img_path.name}")
+            print(f"Hashed: {img_path.name}")
 
     print(f"\nAll baseline hashes saved to {output_file}")
 
@@ -57,10 +57,10 @@ def verify_images(baseline_file: Path, test_dir: Path, output_file: Path):
     for filename, new_hash in sorted(results, key=lambda x: x[0].lower()):
         key = filename.lower()
         if key in baseline:
-            if new_hash != baseline[key]:
+            if new_hash == baseline[key]:
+                print(f"{filename}: Verified")
+            else:
                 print(f"{filename}: Hash mismatch!")
-            # else:
-            #     print(f"{filename}: Verified")
         else:
             print(f"{filename}: Not found in baseline")
 
@@ -252,3 +252,41 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def verify_client_data_integrity(client_id: int, image_paths: list) -> bool:
+    """
+    Verify that the client's dataset matches the trusted baseline hash file
+    Returns True if data is intact, False if tampered
+    """
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    hash_file = os.path.join(current_dir, "image_hashes", f"client_{client_id}_hashes.txt")
+    
+    if not os.path.exists(hash_file):
+        print(f"❌ Client {client_id}: Trusted hash file not found!")
+        return False
+    
+    # Load trusted hashes
+    trusted_hashes = {}
+    with open(hash_file, "r") as f:
+        for line in f:
+            filename, file_hash = line.strip().split(": ")
+            trusted_hashes[filename] = file_hash
+    
+    # Verify each image
+    import hashlib
+    for img_path in image_paths:
+        filename = os.path.basename(img_path)
+        if filename not in trusted_hashes:
+            print(f"❌ Client {client_id}: Unknown file {filename} detected!")
+            return False
+        
+        with open(img_path, "rb") as f:
+            current_hash = hashlib.sha256(f.read()).hexdigest()
+        
+        if current_hash != trusted_hashes[filename]:
+            print(f"❌ Client {client_id}: File {filename} has been TAMPERED!")
+            return False
+    
+    print(f"✅ Client {client_id}: Data integrity verified (TPM baseline)")
+    return True

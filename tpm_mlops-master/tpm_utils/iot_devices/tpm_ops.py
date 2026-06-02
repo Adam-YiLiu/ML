@@ -43,7 +43,7 @@ def verify_model_signature(
             stdout, stderr, return_code = run_cmd(import_cmd, tpm_cmd=True, check=False)
             if return_code != 0:
                 log.error("Failed to import key context. Stdout: %s, Stderr: %s", stdout.strip(), stderr.strip())
-                return False
+            return False
 
         verify_cmd = f"sudo tpm2_verifysignature -m {hash_path} -s {signature_path} -c {key_context_path}"
 

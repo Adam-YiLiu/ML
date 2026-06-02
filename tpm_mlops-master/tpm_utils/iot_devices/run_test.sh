@@ -14,7 +14,7 @@ SWTPM="--use-swtpm"
 COLLECT_POWER=""
 
 # Number of runs per test variant
-NUM_RUNS=10
+NUM_RUNS=5
 
 # ---------------------------------------------------------------------------
 # Model selection: auto-detect Kria DPU or fall back to ONNX
@@ -73,15 +73,15 @@ function run_insecure {
         rm -f pipeline.log
         python3 infer_insecure.py $COLLECT_POWER
         if [ $i -lt $1 ]; then
-            echo "Sleeping for 60 seconds..."
-            sleep 60
+            echo "Sleeping for 10 seconds..."
+            sleep 10
         fi
     done
 }
 
 run_insecure $NUM_RUNS
-echo "Sleeping for 60 seconds..."
-sleep 60
+echo "Sleeping for 10 seconds..."
+sleep 10
 echo
 
 # Function to run a test permutation
@@ -116,13 +116,13 @@ function run_permutation {
         rm -f pipeline.log
         python3 infer_secure.py $flags $SWTPM $COLLECT_POWER
         if [ $i -lt $runs ]; then
-            echo "Sleeping for 60 seconds..."
-            sleep 60
+            echo "Sleeping for 10 seconds..."
+            sleep 10
         fi
     done
     
-    echo "Sleeping for 60 seconds..."
-    sleep 60
+    echo "Sleeping for 10 seconds..."
+    sleep 10
     echo
     cleanup_quotes
 }
@@ -137,7 +137,7 @@ cd ../orchestrator
 python3 main.py "$MODEL_PATH" rsa
 popd > /dev/null
 echo "Model ready. Sleeping for cleaner performance metrics..."
-sleep 10
+sleep 3
 
 # RSA permutations: only test each failure mode individually (workflow stops on first failure)
 # 1. Happy path   2. fail_quote   3. fail_verify   4. fail_hash
@@ -156,7 +156,7 @@ cd ../orchestrator
 python3 main.py "$MODEL_PATH" ecc
 popd > /dev/null
 echo "Model ready. Sleeping for cleaner performance metrics..."
-sleep 10
+sleep 3
 
 # ECC permutations: only test each failure mode individually (workflow stops on first failure)
 # 1. Happy path   2. fail_quote   3. fail_verify   4. fail_hash

@@ -12,10 +12,6 @@
     sudo apt update
     sudo apt install libtpms-dev libtpms0 libtss2-tcti-libtpms0t64
     ```
-2. **Install from dnf (Fedora/RHEL):**
-    ```sh
-    sudo dnf install libtpms-dev libtpms0 libtss2
-    ```
     
 ---
 
@@ -26,12 +22,9 @@
 ### Installation Steps
 
 1.  **Install from apt:**
+
     ```sh
-    sudo apt install swtpm
-    ```
-2.  **Install from dnf (Fedora/RHEL):**
-    ```sh
-    sudo dnf install swtpm
+    sudo apt install  swtpm
     ```
 
 ---
@@ -360,13 +353,7 @@ Now, on every reboot, the TPM emulator and IBM TSS will be up and running automa
 
 # 4. Install tpm2-tools
 
-**For Debian/Ubuntu:**
 ```sh
 sudo apt update
 sudo apt install tpm2-tools
-```
-
-**For Fedora/RHEL:**
-```sh
-sudo dnf install tpm2-tools
 ```
